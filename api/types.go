@@ -211,6 +211,7 @@ type Metrics struct {
 type Options struct {
 	Runner
 
+	Reranking bool `json:"reranking"`
 	// Predict options used at runtime
 	NumKeep          int      `json:"num_keep,omitempty"`
 	Seed             int      `json:"seed,omitempty"`
@@ -243,6 +244,23 @@ type Runner struct {
 	UseMMap   *bool `json:"use_mmap,omitempty"`
 	UseMLock  bool  `json:"use_mlock,omitempty"`
 	NumThread int   `json:"num_thread,omitempty"`
+}
+
+type RerankRequest struct {
+	Model     string   `json:"model"`
+	Query     string   `json:"query"`
+	Documents []string `json:"documents"` // list of documents to rerank
+	// KeepAlive controls how long the model will stay loaded in memory following
+	// this request.
+	KeepAlive *Duration `json:"keep_alive,omitempty"`
+
+	// Options lists model-specific options.
+	Options map[string]interface{} `json:"options"`
+}
+
+// return reranked documents
+type RerankResponse struct {
+	Documents []string `json:"documents"`
 }
 
 // EmbedRequest is the request passed to [Client.Embed].

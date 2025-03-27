@@ -86,7 +86,7 @@ type ContextParams struct {
 	c C.struct_llama_context_params
 }
 
-func NewContextParams(numCtx int, batchSize int, numSeqMax int, threads int, flashAttention bool, kvCacheType string) ContextParams {
+func NewContextParams(numCtx int, batchSize int, numSeqMax int, threads int, flashAttention bool, kvCacheType string, reranking bool) ContextParams {
 	params := C.llama_context_default_params()
 	params.n_ctx = C.uint(numCtx)
 	params.n_batch = C.uint(batchSize)
@@ -97,6 +97,9 @@ func NewContextParams(numCtx int, batchSize int, numSeqMax int, threads int, fla
 	params.flash_attn = C.bool(flashAttention)
 	params.type_k = kvCacheTypeFromStr(strings.ToLower(kvCacheType))
 	params.type_v = kvCacheTypeFromStr(strings.ToLower(kvCacheType))
+	if reranking {
+		params.pooling_type = C.LLAMA_POOLING_TYPE_RANK
+	}
 
 	return ContextParams{c: params}
 }
@@ -123,6 +126,18 @@ type Context struct {
 }
 
 var ErrKvCacheFull = errors.New("could not find a kv cache slot")
+
+func (c *Context) GetTokenBOS() C.llama_token {
+	return C.llama_vocab_bos(c.Model().Vocab())
+}
+
+func (c *Context) GetTokenEOS() C.llama_token {
+	return C.llama_vocab_eos(c.Model().Vocab())
+}
+
+func (c *Context) GetTokenSEP() C.llama_token {
+	return C.llama_vocab_sep(c.Model().Vocab())
+}
 
 func (c *Context) Decode(batch *Batch) error {
 	// Positive return values does not mean a fatal error, but rather a warning.
@@ -273,6 +288,10 @@ func NewContextWithModel(model *Model, params ContextParams) (*Context, error) {
 	}
 
 	return &c, nil
+}
+
+func (m *Model) AddEOSToken() bool {
+	return bool(C.llama_vocab_get_add_bos(m.Vocab()))
 }
 
 func (m *Model) NumVocab() int {
