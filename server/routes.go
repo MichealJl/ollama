@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -557,6 +558,61 @@ func (s *Server) EmbeddingsHandler(c *gin.Context) {
 		Embedding: e,
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+func (s *Server) RerankingHandler(c *gin.Context) {
+	var (
+		req api.RerankRequest
+		rsp api.RerankResponse
+	)
+	if err := c.ShouldBindJSON(&req); errors.Is(err, io.EOF) {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing request body"})
+		return
+	} else if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	name := model.ParseName(req.Model)
+	if !name.IsValid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "model is required"})
+		return
+	}
+
+	// 原样返回
+	if req.Query == "" || len(req.Documents) <= 1 {
+		rsp.Documents = req.Documents
+		c.JSON(http.StatusOK, rsp)
+	}
+	if req.Options == nil {
+		req.Options = make(map[string]any)
+	}
+	req.Options["reranking"] = true
+
+	r, _, _, err := s.scheduleRunner(c.Request.Context(), name.String(), []Capability{}, req.Options, req.KeepAlive)
+	if err != nil {
+		handleScheduleError(c, req.Model, err)
+		return
+	}
+
+	rerankRet, err := r.Rerank(c.Request.Context(), llm.RerankRequest{
+		Model:     req.Model,
+		Query:     req.Query,
+		Documents: req.Documents,
+	})
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": strings.TrimSpace(err.Error())})
+		return
+	}
+	//
+	sort.SliceStable(rerankRet.Results, func(i, j int) bool {
+		return rerankRet.Results[i].RelevanceScore > rerankRet.Results[j].RelevanceScore
+	})
+	for _, result := range rerankRet.Results {
+		rsp.Documents = append(rsp.Documents, req.Documents[result.Index])
+	}
+
+	c.JSON(http.StatusOK, rsp)
 }
 
 func (s *Server) PullHandler(c *gin.Context) {
@@ -1198,6 +1254,7 @@ func (s *Server) GenerateRoutes(rc *ollama.Registry) (http.Handler, error) {
 	r.POST("/api/chat", s.ChatHandler)
 	r.POST("/api/embed", s.EmbedHandler)
 	r.POST("/api/embeddings", s.EmbeddingsHandler)
+	r.POST("/api/reranking", s.RerankingHandler)
 
 	// Inference (OpenAI compatibility)
 	r.POST("/v1/chat/completions", openai.ChatMiddleware(), s.ChatHandler)

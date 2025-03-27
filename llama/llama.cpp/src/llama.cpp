@@ -9062,7 +9062,7 @@ static int llama_decode_impl(
             }
         } else {
             embd = nullptr; // do not extract embeddings when not needed
-            GGML_ASSERT(strcmp(res->name, "result_output") == 0 && "missing result_output tensor");
+                GGML_ASSERT(strcmp(res->name, "result_output") == 0 && "missing result_output tensor");
         }
 
         if (!cparams.causal_attn) {

@@ -759,6 +759,7 @@ func (s *Server) loadModel(
 	flashAttention bool,
 	threads int,
 	multiUserCache bool,
+	reranking bool,
 ) {
 	var err error
 	s.model, err = llama.LoadModelFromFile(mpath, params)
@@ -766,7 +767,7 @@ func (s *Server) loadModel(
 		panic(err)
 	}
 
-	ctxParams := llama.NewContextParams(kvSize, s.batchSize*s.parallel, s.parallel, threads, flashAttention, kvCacheType)
+	ctxParams := llama.NewContextParams(kvSize, s.batchSize*s.parallel, s.parallel, threads, flashAttention, kvCacheType, reranking)
 	s.lc, err = llama.NewContextWithModel(s.model, ctxParams)
 	if err != nil {
 		panic(err)
@@ -816,6 +817,7 @@ func Execute(args []string) error {
 	mlock := fs.Bool("mlock", false, "force system to keep model in RAM rather than swapping or compressing")
 	tensorSplit := fs.String("tensor-split", "", "fraction of the model to offload to each GPU, comma-separated list of proportions")
 	multiUserCache := fs.Bool("multiuser-cache", false, "optimize input cache algorithm for multiple users")
+	reranking := fs.Bool("reranking", false, "enable reranking")
 
 	var lpaths multiLPath
 	fs.Var(&lpaths, "lora", "Path to lora layer file (can be specified multiple times)")
@@ -877,7 +879,7 @@ func Execute(args []string) error {
 	}
 
 	server.ready.Add(1)
-	go server.loadModel(params, *mpath, lpaths, *ppath, *kvSize, *kvCacheType, *flashAttention, *threads, *multiUserCache)
+	go server.loadModel(params, *mpath, lpaths, *ppath, *kvSize, *kvCacheType, *flashAttention, *threads, *multiUserCache, *reranking)
 
 	server.cond = sync.NewCond(&server.mu)
 
@@ -896,6 +898,7 @@ func Execute(args []string) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/embedding", server.embeddings)
+	mux.HandleFunc("/reranking", server.rerank)
 	mux.HandleFunc("/completion", server.completion)
 	mux.HandleFunc("/health", server.health)
 
