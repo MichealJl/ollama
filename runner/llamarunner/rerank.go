@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ollama/ollama/pkg"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 type RerankRequest struct {
@@ -25,6 +27,7 @@ type RerankResponse struct {
 }
 
 func (s *Server) rerank(w http.ResponseWriter, r *http.Request) {
+	defer pkg.Timing("runner-rerank", time.Now())
 	var req RerankRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf("bad rereank request: %s", err), http.StatusBadRequest)

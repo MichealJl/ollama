@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ollama/ollama/pkg"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -89,6 +90,7 @@ func modelOptions(model *Model, requestOpts map[string]interface{}) (api.Options
 // scheduleRunner schedules a runner after validating inputs such as capabilities and model options.
 // It returns the allocated runner, model instance, and consolidated options if successful and error otherwise.
 func (s *Server) scheduleRunner(ctx context.Context, name string, caps []Capability, requestOpts map[string]any, keepAlive *api.Duration) (llm.LlamaServer, *Model, *api.Options, error) {
+	defer pkg.Timing("scheduleRunner", time.Now())
 	if name == "" {
 		return nil, nil, nil, fmt.Errorf("model %w", errRequired)
 	}
