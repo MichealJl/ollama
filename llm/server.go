@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ollama/ollama/pkg"
 	"io"
 	"log"
 	"log/slog"
@@ -856,6 +857,7 @@ type EmbeddingResponse struct {
 }
 
 func (s *llmServer) Embedding(ctx context.Context, input string) ([]float32, error) {
+	defer pkg.Timing("embedding request", time.Now())
 	if err := s.sem.Acquire(ctx, 1); err != nil {
 		if errors.Is(err, context.Canceled) {
 			slog.Info("aborting embedding request due to client closing the connection")
@@ -878,7 +880,6 @@ func (s *llmServer) Embedding(ctx context.Context, input string) ([]float32, err
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling embed data: %w", err)
 	}
-
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/embedding", s.port), bytes.NewBuffer(data))
 	if err != nil {
 		return nil, fmt.Errorf("error creating embed request: %w", err)

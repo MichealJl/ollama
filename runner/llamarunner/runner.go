@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/ollama/ollama/pkg"
 	"log"
 	"log/slog"
 	"net"
@@ -670,6 +671,7 @@ func (s *Server) completion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) embeddings(w http.ResponseWriter, r *http.Request) {
+	defer pkg.Timing("embeddings in runner", time.Now())
 	var req llm.EmbeddingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf("bad request: %s", err), http.StatusBadRequest)
